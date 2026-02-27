@@ -1,2 +1,2 @@
 #!/bin/bash
-docker compose -f ai.yml down
+docker compose --project-name ollama-stack stop

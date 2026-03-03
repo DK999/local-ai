@@ -17,4 +17,4 @@ Containers and volumes (will delete all LLMs, huge download!)
 
 ## Configure LLMs
 Write your models in `scripts/pull-ollama-models.sh` under `DEFAULT_MODELS`.  
-A list of available LLMs can be found at [https://ollama.com/library][Ollama]
+A list of available LLMs can be found at [https://ollama.com/library](Ollama)

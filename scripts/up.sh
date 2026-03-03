@@ -65,7 +65,16 @@ svc_names_for_profile() {
   esac
 }
 
-dc() { docker compose --project-name "$PROJECT" -f "$COMPOSE_FILE" --profile "$PROFILE" "$@"; }
+dc() { 
+  # Dynamisches Auslesen der GIDs vom Host
+  VIDEO_GID=$(getent group video | cut -d: -f3 || echo "")
+  RENDER_GID=$(getent group render | cut -d: -f3 || echo "")
+
+  # Übergabe an Docker Compose via Environment-Variablen
+  VIDEO_GID="${VIDEO_GID}" \
+  RENDER_GID="${RENDER_GID}" \
+  docker compose --project-name "$PROJECT" -f "$COMPOSE_FILE" --profile "$PROFILE" "$@"
+}
 
 find_container_by_service() {
   # Suche den Container für einen Compose-Service (egal ob container_name gesetzt ist)

@@ -146,8 +146,8 @@ else
   else
     # Safer‑Headroom für 16 GB: Q4_K_M
     DEFAULT_MODELS=(
-      "qwen2.5-coder:14b-instruct-q4_K_M" # Chat-Model for Open-WebUI
-      "deepseek-coder-v2:latest" # or :lite to pin Q4_0, Chat-Model for Open-WebUI
+#      "qwen2.5-coder:14b-instruct-q4_K_M" # Chat-Model for Open-WebUI
+#      "deepseek-coder-v2:latest" # or :lite to pin Q4_0, Chat-Model for Open-WebUI
       "deepseek-r1:14b-q8_0" # Chat model optimized for coding
       "qwen3-embedding:0.6b" # Embedding model - Convert text into numerical vectors so you can compare meaning, not just words.
       "dengcao/qwen3-reranker-0.6b:q8_0" # Reranker modek - Improve search or RAG results by scoring the relevance of (query, document) pairs with higher accuracy than embeddings.

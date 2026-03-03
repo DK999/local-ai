@@ -6,7 +6,7 @@ x-ollama-common: &ollama-common
   volumes:
     - ollama:/root/.ollama
   healthcheck:
-    test: ["CMD-SHELL", "curl -fsS http://localhost:11434/api/tags >/dev/null || exit 1"]
+    test: ["CMD-SHELL", "OLLAMA_HOST=http://localhost:11434 ollama list >/dev/null 2>&1 || exit 1"]
     interval: 10s
     timeout: 5s
     retries: 30
@@ -82,8 +82,8 @@ services:
       - /dev/kfd                                 # ROCm compute interface           # [2](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/how-to/docker.html)
       - /dev/dri                                 # DRI nodes for each GPU           # [2](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/how-to/docker.html)
     group_add:
-      - "video"
-      - "render"
+      - "${VIDEO_GID}"
+      - "${RENDER_GID}"
     security_opt:
       - seccomp=unconfined                       # Recommended in ROCm container guide (optional)   # [2](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/how-to/docker.html)
     # If you have a known RDNA/GCN override (rarely needed), uncomment and set:

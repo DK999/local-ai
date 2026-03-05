@@ -38,7 +38,9 @@ detect_profile_and_vram() {
     return
   fi
   if [[ -e /dev/kfd ]]; then
-    printf '%s %s\n' "amd" ""
+    local mb
+    mb="$(( $(cat /sys/class/drm/card0/device/mem_info_vram_total) / 1024 / 1024 ))"
+    printf '%s %s\n' "amd" "${mb}"
     return
   fi
   if ls /dev/dri/renderD* >/dev/null 2>&1; then

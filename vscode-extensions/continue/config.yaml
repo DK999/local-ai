@@ -1,0 +1,32 @@
+name: Local AI Configuration
+version: 1.0.0
+schema: v1
+
+models:
+  # Primary Chat Model
+  - name: "Qwen2.5 Code 14B"
+    provider: ollama
+    model: "deepseek-r1:14b"
+    apiBase: "http://127.0.0.1:11434"
+    roles: ["chat", "edit", "apply"]
+
+  # Embedding Model
+  - name: "Nomic Embedding"
+    provider: ollama
+    model: "qwen3-embedding:0.6b"
+    apiBase: "http://127.0.0.1:11434"
+    roles: ["embed"]
+
+  # Reranking Model
+  - name: "Qwen3 Reranker"
+    provider: ollama
+    model: "dengcao/qwen3-reranker-0.6b:q8_0"
+    apiBase: "http://127.0.0.1:11434"
+    roles: ["rerank"]
+
+  # Autocomplete Model
+  - name: "Qwen Autocomplete"
+    provider: ollama
+    model: "qwen2.5-coder:1.5b-base"
+    apiBase: "http://127.0.0.1:11434"
+    roles: ["autocomplete"]

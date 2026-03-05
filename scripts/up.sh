@@ -3,26 +3,26 @@ set -euo pipefail
 
 # ==========================
 # Self-repair Orchestrator
-#  - wählt GPU-Profil (NVIDIA/AMD/Vulkan/CPU)
-#  - fährt nur den Ollama-Service des Profils hoch
-#  - wartet robust auf HEALTHY (Retry/Restart)
-#  - führt Modell-Pull als One-Shot aus (idempotent)
-#  - startet danach Open-WebUI
+#  - selects GPU profile (NVIDIA/AMD/Vulkan/CPU)
+#  - starts only the profile's Ollama service
+#  - waits robustly for HEALTHY (retry/restart)
+#  - runs model pull as one-shot (idempotent)
+#  - starts Open-WebUI afterwards
 #  - Auto-Fallback (z. B. AMD ohne /dev/kfd -> Vulkan -> CPU)
 # ==========================
 
-# ---------- Konfiguration ----------
+# ---------- Configuration ----------
 PROJECT="${PROJECT:-ollama-stack}"
 COMPOSE_FILE="${COMPOSE_FILE:-ai.yml}"
 
-# Timeouts / Intervall (kannst du bei Bedarf anpassen)
-WAIT_HEALTH_SECS="${WAIT_HEALTH_SECS:-360}"     # Max Wartezeit für HEALTHY
-SLEEP_HEALTH_SECS="${SLEEP_HEALTH_SECS:-3}"     # Poll-Intervall
-RESTART_ON_UNHEALTHY="${RESTART_ON_UNHEALTHY:-1}" # 1=einmal neu starten
+# Timeouts / interval (adjust as needed)
+WAIT_HEALTH_SECS="${WAIT_HEALTH_SECS:-360}"     # Max wait time for HEALTHY
+SLEEP_HEALTH_SECS="${SLEEP_HEALTH_SECS:-3}"     # Poll interval
+RESTART_ON_UNHEALTHY="${RESTART_ON_UNHEALTHY:-1}" # 1=restart once
 
 HOST_VRAM_MB="16000"
 
-# ---------- Hilfsfunktionen ----------
+# ---------- Helper functions ----------
 is_cmd() { command -v "$1" >/dev/null 2>&1; }
 
 die() { echo "❌ $*" >&2; exit 1; }
@@ -66,18 +66,18 @@ svc_names_for_profile() {
 }
 
 dc() { 
-  # Dynamisches Auslesen der GIDs vom Host
+  # Dynamically read GIDs from the host
   VIDEO_GID=$(getent group video | cut -d: -f3 || echo "")
   RENDER_GID=$(getent group render | cut -d: -f3 || echo "")
 
-  # Übergabe an Docker Compose via Environment-Variablen
+  # Pass through to Docker Compose via environment variables
   VIDEO_GID="${VIDEO_GID}" \
   RENDER_GID="${RENDER_GID}" \
   docker compose --project-name "$PROJECT" -f "$COMPOSE_FILE" --profile "$PROFILE" "$@"
 }
 
 find_container_by_service() {
-  # Suche den Container für einen Compose-Service (egal ob container_name gesetzt ist)
+  # Find the container for a Compose service (regardless of container_name)
   local svc="$1"
   docker ps -a \
     --filter "label=com.docker.compose.project=$PROJECT" \
@@ -87,7 +87,7 @@ find_container_by_service() {
 
 health_status() {
   local container_id="$1"
-  # Gibt "healthy", "unhealthy" oder "none" (falls kein Healthcheck) zurück
+  # Returns "healthy", "unhealthy", or "none" (if no healthcheck)
   local st
   st=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_id")
   echo "$st"
@@ -97,7 +97,7 @@ wait_for_healthy_or_timeout() {
   local svc="$1"
   local deadline=$(( $(date +%s) + WAIT_HEALTH_SECS ))
 
-  # Finde den Container-ID/Name
+  # Find container ID/name
   local cid cname
   read -r cid cname < <(find_container_by_service "$svc")
   [[ -n "${cid:-}" ]] || die "Kein Container für Service '$svc' gefunden."
@@ -166,7 +166,7 @@ bring_up_ollama() {
   fi
   print_diag "$svc"
 
-  # Falls unhealthy → einmaliger Restart-Versuch
+  # If unhealthy -> one-time restart attempt
   if try_restart_once "$svc"; then
     return 0
   fi
@@ -177,10 +177,10 @@ run_init_once() {
   local init_svc="$1"
   msg "📦 Pull-Init starten (One-Shot): $init_svc"
   msg "Detected VRAM: ${HOST_VRAM_MB}"
-  # One-shot, damit er jedes Mal idempotent läuft, aber keine Zombie-Container hinterlässt
+  # One-shot so it stays idempotent each run and leaves no zombie containers
   if ! dc run -e INIT_VRAM_HINT_MB="${HOST_VRAM_MB}" --rm "$init_svc"; then
     msg "⚠️  Pull-Init meldete einen Fehler. Logs folgen:"
-    # Fange letzten Init-Container ab (falls vorhanden)
+    # Capture the latest init container (if present)
     docker ps -a --filter "name=${PROJECT}-.*${init_svc}" --format '{{.ID}} {{.Names}}' | head -n1 | while read -r icid iname; do
       [[ -n "${icid:-}" ]] && docker logs --tail=200 "$icid" || true
     done
@@ -196,8 +196,8 @@ start_webui() {
   msg "🔗 Open‑WebUI: http://localhost:${OPEN_WEBUI_PORT:-3000}"
 }
 
-# ---------- Hauptablauf ----------
-# 1) Profilwahl (oder via PROFILE env vorgeben)
+# ---------- Main flow ----------
+# 1) Profile selection (or set via PROFILE env)
 
 read -r PROFILE HOST_VRAM_MB < <(detect_profile_and_vram)
 msg "▶ Detected profile: ${PROFILE}"
@@ -205,7 +205,7 @@ msg "Detected VRAM (host): ${HOST_VRAM_MB:-<empty>}"
 
 read -r OLLAMA_SVC INIT_SVC WEBUI_SVC < <(svc_names_for_profile "$PROFILE")
 
-# 2) Versuche das gewünschte Profil
+# 2) Try the requested profile
 if bring_up_ollama "$OLLAMA_SVC"; then
   run_init_once "$INIT_SVC" || true
   start_webui "$WEBUI_SVC"
@@ -213,10 +213,10 @@ if bring_up_ollama "$OLLAMA_SVC"; then
   exit 0
 fi
 
-# 3) Auto‑Fallbacks (Self-repair)
+# 3) Auto fallbacks (self-repair)
 case "$PROFILE" in
   amd)
-    # Häufigster Grund: /dev/kfd fehlt → Vulkan probieren
+    # Most common reason: /dev/kfd missing -> try Vulkan
     if [[ ! -e /dev/kfd ]]; then
       switch_profile "vulkan"
       read -r OLLAMA_SVC INIT_SVC WEBUI_SVC < <(svc_names_for_profile "$PROFILE")
@@ -229,7 +229,7 @@ case "$PROFILE" in
     fi
     ;;&
   nvidia|amd|vulkan)
-    # Nächster Fallback: CPU
+    # Next fallback: CPU
     switch_profile "cpu"
     read -r OLLAMA_SVC INIT_SVC WEBUI_SVC < <(svc_names_for_profile "$PROFILE")
     if bring_up_ollama "$OLLAMA_SVC"; then

@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # Ollama Model Puller (idempotent) -- robust version
-# - wartet auf Ollama-API
-# - erkennt VRAM (NVIDIA/sysfs) -> wählt Q4/Q5 passend
-# - akzeptiert benutzerdefinierte Liste via CODING_MODELS
-# - fällt von -q5_K_M/-q4_K_M auf Basistag zurück, wenn Tag nicht existiert
+# - waits for Ollama API
+# - detects VRAM (NVIDIA/sysfs) -> picks matching Q4/Q5
+# - accepts custom list via CODING_MODELS
+# - falls back from -q5_K_M/-q4_K_M to base tag when tag does not exist
 
 set -euo pipefail
 
 log()  { printf '%s %s\n' "[$(date +'%F %T')]" "$*"; }
 fail() { log "ERROR: $*"; exit 1; }
 
-# ---------------------- Funktionen ----------------------
+# ---------------------- Functions ----------------------
 
 wait_for_ollama() {
   local host="${1}"
@@ -51,13 +51,13 @@ wait_for_ollama() {
 }
 
 detect_vram_mb() {
-  # 0) Expliziter Hint (host-seitig gesetzt; gewinnt immer)
+  # 0) Explicit hint (set on host side; always wins)
   if [[ -n "${INIT_VRAM_HINT_MB:-}" && "${INIT_VRAM_HINT_MB}" =~ ^[0-9]+$ ]]; then
     echo "${INIT_VRAM_HINT_MB}"
     return
   fi
 
-  # 1) NVIDIA: Falls nvidia-smi im Container existiert (selten)
+  # 1) NVIDIA: if nvidia-smi exists in container (rare)
   if command -v nvidia-smi >/dev/null 2>&1; then
     local mb
     mb=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -n1 || true)
@@ -76,8 +76,8 @@ detect_vram_mb() {
     fi
   done
 
-  # 3) Fallback: konservativer Default mit Warnung
-  #    (passend für viele 16 GB‑Setups; lässt Headroom für KV‑Cache)
+  # 3) Fallback: conservative default with warning
+  #    (fits many 16 GB setups; leaves headroom for KV cache)
   log "⚠ Konnte VRAM nicht automatisch ermitteln – verwende konservativen Default 16000 MB."
   echo "16000"
 }
@@ -112,29 +112,29 @@ print_list() {
   for m in "${arr[@]}"; do printf '  - %s\n' "$m"; done
 }
 
-# ---------------------- Hauptteil ----------------------
+# ---------------------- Main section ----------------------
 
 log "▶ Ollama Model Puller – Start"
 
-# Standard-Host innerhalb Compose (per ENV überschreibbar)
+# Default host inside Compose (overridable via ENV)
 : "${OLLAMA_HOST:=http://ollama:11434}"
 
-# Warten bis API erreichbar
+# Wait until API is reachable
 wait_for_ollama "${OLLAMA_HOST}"
 
-# Benutzerdefinierte Liste?
+# Custom list?
 if [[ -n "${CODING_MODELS:-}" ]]; then
-  # Komma/Space-getrennt akzeptieren
+  # Accept comma/space-separated values
   IFS=', ' read -r -a DEFAULT_MODELS <<< "${CODING_MODELS}"
   log "🧾 Benutzerdefinierte Modellauswahl (CODING_MODELS):"
   print_list "${DEFAULT_MODELS[@]}"
 else
-  # Adaptive Defaults für ~16–24 GB
+  # Adaptive defaults for ~16–24 GB
   VRAM_MB="$(detect_vram_mb)"
   log "🧠 Erkannte VRAM: ${VRAM_MB} MB"
 
   if [[ "${VRAM_MB}" -ge 18000 ]]; then
-    # Mehr Qualität bei ≥18 GB: Q5_K_M
+    # Higher quality at >=18 GB: Q5_K_M
     DEFAULT_MODELS=(
       "qwen2.5-coder:14b-instruct-q5_K_M" # Chat-Model for Open-WebUI
       "deepseek-coder-v2:latest" # or :lite to pin Q4_0, Chat-Model for Open-WebUI
@@ -144,7 +144,7 @@ else
       "qwen2.5-coder:1.5b-base" # Autocomplete model - Predict the next tokens for fast inline typing completion.
     )
   else
-    # Safer‑Headroom für 16 GB: Q4_K_M
+    # Safer headroom for 16 GB: Q4_K_M
     DEFAULT_MODELS=(
 #      "qwen2.5-coder:14b-instruct-q4_K_M" # Chat-Model for Open-WebUI
 #      "deepseek-coder-v2:latest" # or :lite to pin Q4_0, Chat-Model for Open-WebUI
@@ -159,10 +159,10 @@ else
   print_list "${DEFAULT_MODELS[@]}"
 fi
 
-# OLLAMA_HOST für CLI exportieren
+# Export OLLAMA_HOST for CLI
 export OLLAMA_HOST="${OLLAMA_HOST}"
 
-# Modelle idempotent ziehen
+# Pull models idempotently
 for model in "${DEFAULT_MODELS[@]}"; do
   if already_installed "${OLLAMA_HOST}" "${model}"; then
     log "✔ Bereits vorhanden: ${model}"

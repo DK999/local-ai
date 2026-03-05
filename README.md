@@ -77,9 +77,6 @@ qwen2.5-coder:1.5b-base              02e0f2817a89    986 MB    Less than a secon
 dengcao/qwen3-reranker-0.6b:q8_0     c9da58824943    639 MB    Less than a second ago    
 qwen3-embedding:0.6b                 ac6da0dfba84    639 MB    1 second ago              
 deepseek-r1:14b                      c333b7232bdb    9.0 GB    1 second ago              
-deepseek-coder-v2:latest             63fb193b3a9b    8.9 GB    6 days ago                
-qwen2.5-coder:14b-instruct-q4_K_M    9ec8897f747e    9.0 GB    6 days ago                
-deepseek-coder-v2:lite               63fb193b3a9b    8.9 GB    6 days ago                
 ✅ Models loaded (if not already present).
 💻 Starting Open‑WebUI: open-webui-nvidia
 [+] up 2/2

@@ -75,7 +75,7 @@ dc() {
   # Pass through to Docker Compose via environment variables
   VIDEO_GID="${VIDEO_GID}" \
   RENDER_GID="${RENDER_GID}" \
-  docker compose --project-name "$PROJECT" -f "$COMPOSE_FILE" --profile "$PROFILE" "$@"
+  docker compose --project-name "$PROJECT" -f "$COMPOSE_FILE" --profile "$PROFILE" "$@" --pull always
 }
 
 find_container_by_service() {

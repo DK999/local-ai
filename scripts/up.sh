@@ -60,7 +60,7 @@ svc_names_for_profile() {
     cpu)
       echo "ollama-cpu ollama-init-cpu open-webui-cpu" ;;
     *)
-      die "Unbekanntes Profil: $profile"
+      die "Unknown profile: $profile"
       ;;
   esac
 }
@@ -100,7 +100,7 @@ wait_for_healthy_or_timeout() {
   # Find container ID/name
   local cid cname
   read -r cid cname < <(find_container_by_service "$svc")
-  [[ -n "${cid:-}" ]] || die "Kein Container für Service '$svc' gefunden."
+  [[ -n "${cid:-}" ]] || die "No container found for service '$svc'."
 
   while true; do
     local now
@@ -110,12 +110,12 @@ wait_for_healthy_or_timeout() {
     st=$(health_status "$cid")
 
     if [[ "$st" == "healthy" ]]; then
-      msg "✅ Service '$svc' ist HEALTHY (Container: $cname)"
+      msg "✅ Service '$svc' is HEALTHY (Container: $cname)"
       return 0
     fi
 
     if (( left <= 0 )); then
-      msg "⏱️  Timeout: Service '$svc' ist '$st' nach ${WAIT_HEALTH_SECS}s"
+      msg "⏱️  Timeout: Service '$svc' is '$st' after ${WAIT_HEALTH_SECS}s"
       return 1
     fi
 
@@ -127,13 +127,13 @@ print_diag() {
   local svc="$1"
   local cid cname
   read -r cid cname < <(find_container_by_service "$svc")
-  [[ -n "${cid:-}" ]] || { msg "ℹ️  Keine Container-Daten für $svc"; return; }
+  [[ -n "${cid:-}" ]] || { msg "ℹ️  No container data for $svc"; return; }
 
-  msg "\n----- DIAGNOSE: $svc ($cname) -----"
+  msg "\n----- DIAGNOSTICS: $svc ($cname) -----"
   docker inspect -f '{{json .State.Health}}' "$cid" 2>/dev/null || true
   echo
   docker logs --tail=400 "$cid" 2>&1 || true
-  msg "----- ENDE DIAGNOSE -----\n"
+  msg "----- END DIAGNOSTICS -----\n"
 }
 
 try_restart_once() {
@@ -145,7 +145,7 @@ try_restart_once() {
   read -r cid cname < <(find_container_by_service "$svc")
   [[ -n "${cid:-}" ]] || return 1
 
-  msg "🔁 Unhealthy → einmaliger Neustart von '$svc' (Container: $cname) ..."
+  msg "🔁 Unhealthy -> one-time restart of '$svc' (Container: $cname) ..."
   docker restart "$cid" >/dev/null
   sleep 3
   wait_for_healthy_or_timeout "$svc"
@@ -153,13 +153,13 @@ try_restart_once() {
 
 switch_profile() {
   local new="$1"
-  msg "🔀 Wechsle automatisch auf Profil: $new"
+  msg "🔀 Automatically switching to profile: $new"
   PROFILE="$new"
 }
 
 bring_up_ollama() {
   local svc="$1"
-  msg "▶ Starte Ollama-Service: $svc (Profil: $PROFILE)"
+  msg "▶ Starting Ollama service: $svc (Profile: $PROFILE)"
   dc up -d "$svc"
   if wait_for_healthy_or_timeout "$svc"; then
     return 0
@@ -175,23 +175,23 @@ bring_up_ollama() {
 
 run_init_once() {
   local init_svc="$1"
-  msg "📦 Pull-Init starten (One-Shot): $init_svc"
+  msg "📦 Starting pull init (one-shot): $init_svc"
   msg "Detected VRAM: ${HOST_VRAM_MB}"
   # One-shot so it stays idempotent each run and leaves no zombie containers
   if ! dc run -e INIT_VRAM_HINT_MB="${HOST_VRAM_MB}" --rm "$init_svc"; then
-    msg "⚠️  Pull-Init meldete einen Fehler. Logs folgen:"
+    msg "⚠️  Pull init reported an error. Logs follow:"
     # Capture the latest init container (if present)
     docker ps -a --filter "name=${PROJECT}-.*${init_svc}" --format '{{.ID}} {{.Names}}' | head -n1 | while read -r icid iname; do
       [[ -n "${icid:-}" ]] && docker logs --tail=200 "$icid" || true
     done
     return 1
   fi
-  msg "✅ Modelle geladen (falls nicht vorhanden)."
+  msg "✅ Models loaded (if not already present)."
 }
 
 start_webui() {
   local webui_svc="$1"
-  msg "💻 Starte Open‑WebUI: $webui_svc"
+  msg "💻 Starting Open‑WebUI: $webui_svc"
   dc up -d "$webui_svc"
   msg "🔗 Open‑WebUI: http://localhost:${OPEN_WEBUI_PORT:-3000}"
 }
@@ -209,7 +209,7 @@ read -r OLLAMA_SVC INIT_SVC WEBUI_SVC < <(svc_names_for_profile "$PROFILE")
 if bring_up_ollama "$OLLAMA_SVC"; then
   run_init_once "$INIT_SVC" || true
   start_webui "$WEBUI_SVC"
-  msg "🎉 Erfolg: Profil '$PROFILE' läuft."
+  msg "🎉 Success: profile '$PROFILE' is running."
   exit 0
 fi
 
@@ -223,7 +223,7 @@ case "$PROFILE" in
       if bring_up_ollama "$OLLAMA_SVC"; then
         run_init_once "$INIT_SVC" || true
         start_webui "$WEBUI_SVC"
-        msg "🎉 Erfolg: Fallback auf Vulkan."
+        msg "🎉 Success: fallback to Vulkan."
         exit 0
       fi
     fi
@@ -235,10 +235,10 @@ case "$PROFILE" in
     if bring_up_ollama "$OLLAMA_SVC"; then
       run_init_once "$INIT_SVC" || true
       start_webui "$WEBUI_SVC"
-      msg "🎉 Erfolg: Fallback auf CPU."
+      msg "🎉 Success: fallback to CPU."
       exit 0
     fi
     ;;
 esac
 
-die "Konnte keinen funktionsfähigen Pfad finden. Siehe Diagnose oben."
+die "Could not find a working path. See diagnostics above."

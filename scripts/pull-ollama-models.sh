@@ -14,12 +14,12 @@ fail() { log "ERROR: $*"; exit 1; }
 
 wait_for_ollama() {
   local host="${1}"
-  log "⏳ Warte auf Ollama API unter ${host} ..."
+  log "⏳ Waiting for Ollama API at ${host} ..."
 
   # 1) Try using the Ollama CLI (preferred; always present in the image)
   for _ in $(seq 1 120); do
     if OLLAMA_HOST="${host}" ollama list >/dev/null 2>&1; then
-      log "✅ Ollama API erreichbar (per ollama CLI)."
+      log "✅ Ollama API reachable (via ollama CLI)."
       return 0
     fi
     sleep 2
@@ -40,14 +40,14 @@ wait_for_ollama() {
       exec 3>&- 3<&-
       # One last CLI probe to be sure
       if OLLAMA_HOST="${host}" ollama list >/dev/null 2>&1; then
-        log "✅ Ollama API erreichbar (nach TCP-Fallback)."
+        log "✅ Ollama API reachable (after TCP fallback)."
         return 0
       fi
     fi
     sleep 1
   done
 
-  fail "Ollama API nicht erreichbar unter ${host}"
+  fail "Ollama API not reachable at ${host}"
 }
 
 detect_vram_mb() {
@@ -64,7 +64,7 @@ detect_vram_mb() {
     [[ -n "$mb" ]] && { echo "$mb"; return; }
   fi
 
-  # 2) AMD (oder ggf. iGPU): sysfs (Bytes -> MiB)
+  # 2) AMD (or possibly iGPU): sysfs (Bytes -> MiB)
   for f in /sys/class/drm/card*/device/mem_info_vram_total /sys/class/drm/card*/device/vram_total; do
     if [[ -r "$f" ]]; then
       local bytes
@@ -78,7 +78,7 @@ detect_vram_mb() {
 
   # 3) Fallback: conservative default with warning
   #    (fits many 16 GB setups; leaves headroom for KV cache)
-  log "⚠ Konnte VRAM nicht automatisch ermitteln – verwende konservativen Default 16000 MB."
+  log "⚠ Could not detect VRAM automatically - using conservative default 16000 MB."
   echo "16000"
 }
 
@@ -98,9 +98,10 @@ pull_with_fallback() {
     return 0
   fi
   # Fallback: Quant‑Suffix entfernen (z. B. -q5_K_M / -q4_K_M)
+  # Fallback: remove quant suffix (e.g. -q5_K_M / -q4_K_M)
   local base="${tag%%-q*}"
   if [[ "${base}" != "${tag}" ]]; then
-    log "   … Fallback ohne Quant: ${base}"
+    log "   ... Fallback without quant: ${base}"
     ollama pull "${base}" || return 1
   else
     return 1
@@ -126,12 +127,12 @@ wait_for_ollama "${OLLAMA_HOST}"
 if [[ -n "${CODING_MODELS:-}" ]]; then
   # Accept comma/space-separated values
   IFS=', ' read -r -a DEFAULT_MODELS <<< "${CODING_MODELS}"
-  log "🧾 Benutzerdefinierte Modellauswahl (CODING_MODELS):"
+  log "🧾 Custom model selection (CODING_MODELS):"
   print_list "${DEFAULT_MODELS[@]}"
 else
   # Adaptive defaults for ~16–24 GB
   VRAM_MB="$(detect_vram_mb)"
-  log "🧠 Erkannte VRAM: ${VRAM_MB} MB"
+  log "🧠 Detected VRAM: ${VRAM_MB} MB"
 
   if [[ "${VRAM_MB}" -ge 18000 ]]; then
     # Higher quality at >=18 GB: Q5_K_M
@@ -155,7 +156,7 @@ else
     )
   fi
 
-  log "📦 Zielliste:"
+  log "📦 Target list:"
   print_list "${DEFAULT_MODELS[@]}"
 fi
 
@@ -165,13 +166,13 @@ export OLLAMA_HOST="${OLLAMA_HOST}"
 # Pull models idempotently
 for model in "${DEFAULT_MODELS[@]}"; do
   if already_installed "${OLLAMA_HOST}" "${model}"; then
-    log "✔ Bereits vorhanden: ${model}"
+    log "✔ Already installed: ${model}"
     continue
   fi
   if ! pull_with_fallback "${model}"; then
-    log "⚠ Konnte ${model} nicht ziehen. Weiter mit nächstem."
+    log "⚠ Could not pull ${model}. Continuing with next one."
   fi
 done
 
-log "🏁 Fertig. Installierte Modelle:"
+log "🏁 Done. Installed models:"
 ollama list || true
